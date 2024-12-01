@@ -7,4 +7,6 @@
     <string name="go_to_signup">Belum punya akun?</string>
     <string name="sign_up">Daftar</string>
     <string name="email_or_phone_hint">Masukkan Email atau Nomor HP</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>
