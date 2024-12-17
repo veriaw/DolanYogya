@@ -66,4 +66,6 @@ dependencies {
     implementation (libs.glide)
     implementation (libs.osmdroid.android)
     implementation (libs.play.services.location)
+    implementation(libs.okhttp)
+    implementation (libs.maps.utils.ktx)
 }

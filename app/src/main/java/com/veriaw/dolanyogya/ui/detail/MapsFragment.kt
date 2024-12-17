@@ -16,14 +16,24 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.google.maps.android.PolyUtil
 import com.veriaw.dolanyogya.R
 import com.veriaw.dolanyogya.databinding.FragmentMapsBinding
 import com.veriaw.dolanyogya.model.PlaceViewModel
 import com.veriaw.kriptografiapp.model.ViewModelFactory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.BoundingBox
+import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 
 
 /**
@@ -100,6 +110,14 @@ class MapsFragment : Fragment() {
                         origin.icon= ContextCompat.getDrawable(requireContext(), R.drawable.ic_origin)
                         map.overlays.add(origin)
 
+                        place.longitude?.let { it1 ->
+                            place.latitude?.let { it2 ->
+                                fetchRouteData(currentLoc.longitude, currentLoc.latitude,
+                                    it1, it2
+                                )
+                            }
+                        }
+
                         map.invalidate()
                     } }
                 }
@@ -109,6 +127,65 @@ class MapsFragment : Fragment() {
                 Log.d("Current Loc","Failed to get Current Location")
             }
         }
+    }
+
+    private fun fetchRouteData(currentLong: Double, currentLat: Double, toLong: Double, toLat: Double) {
+        val client = OkHttpClient()
+        val url = "https://router.project-osrm.org/route/v1/driving/$currentLong,$currentLat;$toLong,$toLat?overview=full&alternatives=true&steps=true"
+
+        val request = Request.Builder().url(url).build()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    if (responseBody != null) {
+                        val jsonResponse = JSONObject(responseBody)
+
+                        // Ambil array routes dari JSON
+                        val routesArray = jsonResponse.optJSONArray("routes")
+                        if (routesArray != null && routesArray.length() > 0) {
+                            val firstRoute = routesArray.getJSONObject(0) // Ambil rute pertama
+
+                            // Ambil geometry overview dari rute pertama
+                            val geometry = firstRoute.optString("geometry", "")
+                            if (geometry.isNotEmpty()) {
+                                // Decode geometry ke koordinat
+                                val coordinates = PolyUtil.decode(geometry)
+                                withContext(Dispatchers.Main) {
+                                    drawRouteOnMap(coordinates)
+                                }
+                            } else {
+                                Log.e("fetchRouteData", "Overview geometry tidak ditemukan")
+                            }
+                        } else {
+                            Log.e("fetchRouteData", "Tidak ada rute ditemukan dalam respons")
+                        }
+                    }
+                } else {
+                    Log.e("fetchRouteData", "Request gagal dengan status: ${response.code}")
+                }
+            } catch (e: Exception) {
+                Log.e("fetchRouteData", "Terjadi kesalahan: ${e.message}")
+            }
+        }
+    }
+
+    private fun drawRouteOnMap(coordinates: List<com.google.android.gms.maps.model.LatLng>) {
+        // Membuat Polyline dan menambahkannya ke MapView
+        val polyline = Polyline()
+        val geoPoints = mutableListOf<GeoPoint>()
+        polyline.outlinePaint.color = Color.BLUE      // Ubah warna menjadi merah
+        polyline.outlinePaint.strokeWidth = 8.0f      // Atur ketebalan garis
+        polyline.outlinePaint.isAntiAlias = true
+        // Mengubah koordinat dari LatLng (Google Maps) ke GeoPoint (OSMDroid)
+        for (coord in coordinates) {
+            geoPoints.add(GeoPoint(coord.latitude, coord.longitude))
+        }
+
+        polyline.setPoints(geoPoints)
+        map.overlayManager.add(polyline)
     }
 
 
